@@ -1,8 +1,8 @@
-streamlit
 matplotlib
 seaborn
-numpy
 pandas
+numpy
 yfinance
 quantstats
 cvxpy
+streamlit
