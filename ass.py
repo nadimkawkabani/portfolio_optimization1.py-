@@ -4,17 +4,13 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import quantstats as qs
 import cvxpy as cp
 import warnings
 
 # Suppress warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
-# Set page configuration
-st.set_page_config(page_title="Portfolio Optimization", layout="wide")
-
-# Define diversified assets across industries
+# Define assets
 ASSETS = [
     "MSFT", "AAPL", "GOOGL", "AMZN", "META",    # Technology
     "NFLX", "ADSK", "INTC", "NVDA", "TSM",      # Semiconductors & Tech
@@ -22,108 +18,106 @@ ASSETS = [
     "UNH", "LLY", "PFE", "BMY", "MRK"           # Healthcare
 ]
 
-# Sidebar Filters
+# Streamlit configuration
+st.set_page_config(page_title="Portfolio Optimization", layout="wide")
+st.title("📈 Portfolio Optimization Dashboard")
+
+# Sidebar Inputs
 with st.sidebar:
-    st.header("Portfolio Settings")
     selected_assets = st.multiselect("Select Assets", ASSETS, default=ASSETS)
     start_date = st.date_input("Start Date", value=pd.to_datetime("2017-01-01"))
     end_date = st.date_input("End Date", value=pd.to_datetime("2023-12-31"))
-    gamma_value = st.slider("Risk Aversion (Gamma)", 0.001, 100.0, 0.1, 0.001)
-    max_leverage_value = st.slider("Max Leverage", 1, 5, 1, 1)
+    gamma_value = st.slider("Risk Aversion (Gamma)", min_value=0.001, max_value=100.0, value=0.1, step=0.001)
+    max_leverage_value = st.slider("Max Leverage", min_value=1, max_value=5, value=1, step=1)
 
-# Download market data
-try:
-    prices_df = yf.download(selected_assets, start=start_date, end=end_date)["Close"]
-    returns = prices_df.pct_change().dropna()
-except Exception as e:
-    st.error(f"Error fetching data: {e}")
-    st.stop()
+@st.cache_data
+def fetch_data(assets, start, end):
+    """ Fetch adjusted closing prices & compute daily returns """
+    data = yf.download(assets, start=start, end=end)
+    return data["Close"].pct_change().dropna()
 
-# Equal Weight Portfolio (Baseline)
-portfolio_weights = np.array([1 / len(selected_assets)] * len(selected_assets))
-portfolio_returns = returns.dot(portfolio_weights)
+# Fetch data
+returns = fetch_data(selected_assets, start_date, end_date)
 
-st.subheader("Baseline: 1/n Portfolio Performance")
-qs.plots.snapshot(portfolio_returns, title="Equal Weighted Portfolio Performance", grayscale=True)
-qs.reports.metrics(portfolio_returns, benchmark="SPY", mode="basic")
-
-# Optimization Setup
+# Portfolio Optimization
 avg_returns = returns.mean().values
 cov_mat = returns.cov().values
-
 weights = cp.Variable(len(selected_assets))
 gamma_par = cp.Parameter(nonneg=True)
 
-portf_rtn_cvx = avg_returns @ weights
-portf_vol_cvx = cp.quad_form(weights, cov_mat)
-objective_function = cp.Maximize(portf_rtn_cvx - gamma_par * portf_vol_cvx)
+portf_rtn = avg_returns @ weights
+portf_vol = cp.quad_form(weights, cov_mat)
+objective_function = cp.Maximize(portf_rtn - gamma_par * portf_vol)
 problem = cp.Problem(objective_function, [cp.sum(weights) == 1, weights >= 0])
+
+gamma_par.value = gamma_value
+problem.solve()
+
+optimized_weights = weights.value
 
 # Efficient Frontier Calculation
 N_POINTS = 25
-portf_rtn_cvx_ef = []
-portf_vol_cvx_ef = []
 gamma_range = np.logspace(-3, 3, num=N_POINTS)
+frontier_x, frontier_y = [], []
 
 for gamma in gamma_range:
-    gamma_par.value = gamma_value
+    gamma_par.value = gamma
     problem.solve()
-    portf_vol_cvx_ef.append(np.sqrt(portf_vol_cvx.value))
-    portf_rtn_cvx_ef.append(portf_rtn_cvx.value)
+    frontier_x.append(np.sqrt(portf_vol.value))
+    frontier_y.append(portf_rtn.value)
 
-# Convert data for Plotly
-df_ef = pd.DataFrame({"Volatility": portf_vol_cvx_ef, "Return": portf_rtn_cvx_ef, "Gamma": np.round(gamma_range, 3)})
+# 🎯 **Efficient Frontier Plot with Interactivity**
+fig = go.Figure()
 
-# Efficient Frontier Plot
-st.subheader("Efficient Frontier (Interactive)")
-fig = px.scatter(df_ef, x="Volatility", y="Return", color="Gamma",
-                 hover_data={"Gamma": True}, title="Efficient Frontier")
+# Efficient Frontier Curve
+fig.add_trace(go.Scatter(
+    x=frontier_x, y=frontier_y, mode='lines', name='Efficient Frontier',
+    hovertemplate="Volatility: %{x:.2%}<br>Expected Return: %{y:.2%}"
+))
 
-# Add asset points
+# Scatter plot for assets
 for i, asset in enumerate(selected_assets):
     fig.add_trace(go.Scatter(
         x=[np.sqrt(cov_mat[i, i])], y=[avg_returns[i]],
-        mode="markers", marker=dict(size=10, symbol="circle"),
-        name=asset
+        mode='markers+text',
+        marker=dict(size=12, symbol='circle', color='blue'),
+        text=asset, textposition="top center",
+        hovertemplate="<b>%{text}</b><br>Volatility: %{x:.2%}<br>Expected Return: %{y:.2%}"
     ))
 
-st.plotly_chart(fig, use_container_width=True)
+fig.update_layout(
+    title="📊 Efficient Frontier with Asset Positions",
+    xaxis_title="Volatility (Risk)", yaxis_title="Expected Return",
+    hovermode="x unified", template="plotly_dark"
+)
+st.plotly_chart(fig)
 
-# Portfolio Optimization with Leverage
-max_leverage = cp.Parameter()
-prob_with_leverage = cp.Problem(objective_function, [cp.sum(weights) == 1, cp.norm(weights, 1) <= max_leverage])
+# 📊 **Portfolio Allocation Bar Chart**
+allocation_df = pd.DataFrame({'Asset': selected_assets, 'Weight': optimized_weights})
 
-portf_vol_l = np.zeros((N_POINTS, 1))
-portf_rtn_l = np.zeros((N_POINTS, 1))
+fig_allocation = px.bar(
+    allocation_df, x="Asset", y="Weight",
+    text=allocation_df["Weight"].apply(lambda x: f"{x:.2%}"),
+    title="Portfolio Allocation",
+    labels={"Weight": "Portfolio Weight"},
+    color="Asset"
+)
+fig_allocation.update_traces(textposition="outside")
+fig_allocation.update_layout(yaxis_tickformat=".1%")
+st.plotly_chart(fig_allocation)
 
-for gamma_ind in range(N_POINTS):
-    max_leverage.value = max_leverage_value
-    gamma_par.value = gamma_range[gamma_ind]
-    prob_with_leverage.solve()
-    portf_vol_l[gamma_ind, 0] = np.sqrt(portf_vol_cvx.value)
-    portf_rtn_l[gamma_ind, 0] = portf_rtn_cvx.value
+# ✅ **Summary Metrics**
+st.subheader("📌 Portfolio Summary")
+st.write(f"**Expected Return:** {portf_rtn.value:.2%}")
+st.write(f"**Volatility (Risk):** {np.sqrt(portf_vol.value):.2%}")
+st.write(f"**Risk Aversion (Gamma):** {gamma_value}")
+st.write(f"**Maximum Leverage Allowed:** {max_leverage_value}")
 
-df_leverage = pd.DataFrame({"Volatility": portf_vol_l[:, 0], "Return": portf_rtn_l[:, 0], "Leverage": max_leverage_value})
-
-st.subheader("Efficient Frontier with Leverage")
-fig_leverage = px.scatter(df_leverage, x="Volatility", y="Return", color="Leverage",
-                          title="Efficient Frontier with Leverage", hover_data={"Leverage": True})
-st.plotly_chart(fig_leverage, use_container_width=True)
-
-# Weight Allocation Table
-st.subheader("Optimal Portfolio Weights")
-opt_weights = pd.DataFrame(weights.value, index=selected_assets, columns=["Weight"])
-st.write(opt_weights.style.format("{:.2%}"))
-
-# Final Remarks
+# 💡 **User Insights**
 st.markdown("""
-## Project Overview  
-This project explores **Modern Portfolio Theory (MPT)** and **Efficient Frontier Calculation**.  
-We optimize a stock portfolio based on historical returns and volatility, incorporating:
-- Equal-weighted baseline portfolios
-- Risk aversion sensitivity analysis (Gamma parameter)
-- **Interactive efficient frontier visualization**
-- Effects of leverage on asset allocation
-
-The **goal** is to find optimal portfolio allocations that maximize returns **for a given level of risk**.
+### 🔍 Insights
+- Hover over **Efficient Frontier** points to see risk/return values.
+- Click on **Asset Names** to highlight specific stocks.
+- **Portfolio Weights** are displayed in an interactive bar chart.
+- Adjust **Risk Aversion (Gamma)** to see how allocations change.
 """)
