@@ -93,11 +93,14 @@ ax.legend(bbox_to_anchor=(1, 1))  # Move legend to the far right
 sns.despine()
 st.pyplot(fig)
 
-# Plot Efficient Frontier
-st.subheader("Efficient Frontier")
+# Plot Efficient Frontier with Asset Points
+st.subheader("Efficient Frontier with Asset Points")
 fig, ax = plt.subplots()
-ax.plot(portf_vol_cvx_ef, portf_rtn_cvx_ef, "g-")
 
+# Plot Efficient Frontier Line
+ax.plot(portf_vol_cvx_ef, portf_rtn_cvx_ef, "g-", label="Efficient Frontier")
+
+# Scatter plot for individual assets
 MARKERS = ["o", "X", "d", "*"]
 for asset_index in range(len(selected_assets)):
     ax.scatter(x=np.sqrt(cov_mat[asset_index, asset_index]),
@@ -105,7 +108,8 @@ for asset_index in range(len(selected_assets)):
                marker=MARKERS[asset_index % len(MARKERS)],
                label=selected_assets[asset_index],
                s=150)
-ax.set(title="Efficient Frontier", xlabel="Volatility", ylabel="Expected Returns")
+
+ax.set(title="Efficient Frontier with Asset Points", xlabel="Volatility", ylabel="Expected Returns")
 ax.legend(bbox_to_anchor=(1, 1))  # Move legend to the far right
 sns.despine()
 st.pyplot(fig)
