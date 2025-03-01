@@ -32,7 +32,6 @@ with st.sidebar:
 
 @st.cache_data
 def fetch_data(assets, start, end):
-    """ Fetch adjusted closing prices & compute daily returns """
     data = yf.download(assets, start=start, end=end)
     return data["Close"].pct_change().dropna()
 
@@ -55,7 +54,7 @@ problem.solve()
 
 optimized_weights = weights.value
 
-# Efficient Frontier Calculation
+# Efficient Frontier
 N_POINTS = 25
 gamma_range = np.logspace(-3, 3, num=N_POINTS)
 frontier_x, frontier_y = [], []
@@ -66,61 +65,20 @@ for gamma in gamma_range:
     frontier_x.append(np.sqrt(portf_vol.value))
     frontier_y.append(portf_rtn.value)
 
-# 🎯 **Efficient Frontier Plot with Interactivity**
+# Interactive Efficient Frontier Plot
 fig = go.Figure()
-
-# Efficient Frontier Curve
-fig.add_trace(go.Scatter(
-    x=frontier_x, y=frontier_y, mode='lines', name='Efficient Frontier',
-    hovertemplate="Volatility: %{x:.2%}<br>Expected Return: %{y:.2%}"
-))
+fig.add_trace(go.Scatter(x=frontier_x, y=frontier_y, mode='lines', name='Efficient Frontier'))
 
 # Scatter plot for assets
 for i, asset in enumerate(selected_assets):
     fig.add_trace(go.Scatter(
         x=[np.sqrt(cov_mat[i, i])], y=[avg_returns[i]],
-        mode='markers+text',
-        marker=dict(size=12, symbol='circle', color='blue'),
-        text=asset, textposition="top center",
-        hovertemplate="<b>%{text}</b><br>Volatility: %{x:.2%}<br>Expected Return: %{y:.2%}"
+        mode='markers', marker=dict(size=10, symbol='circle'), name=asset
     ))
 
-fig.update_layout(
-    title="📊 Efficient Frontier with Asset Positions",
-    xaxis_title="Volatility (Risk)", yaxis_title="Expected Return",
-    hovermode="x unified", template="plotly_dark"
-)
+fig.update_layout(title='Efficient Frontier', xaxis_title='Volatility', yaxis_title='Expected Return')
 st.plotly_chart(fig)
 
-# 📊 **Portfolio Allocation Bar Chart**
-allocation_df = pd.DataFrame({'Asset': selected_assets, 'Weight': optimized_weights})
-
-fig_allocation = px.bar(
-    allocation_df, x="Asset", y="Weight",
-    text=allocation_df["Weight"].apply(lambda x: f"{x:.2%}"),
-    title="Portfolio Allocation",
-    labels={"Weight": "Portfolio Weight"},
-    color="Asset"
-)
-fig_allocation.update_traces(textposition="outside")
-fig_allocation.update_layout(yaxis_tickformat=".1%")
-st.plotly_chart(fig_allocation)
-
-# ✅ **Summary Metrics**
-st.subheader("📌 Portfolio Summary")
-st.write(f"**Expected Return:** {portf_rtn.value:.2%}")
-st.write(f"**Volatility (Risk):** {np.sqrt(portf_vol.value):.2%}")
-st.write(f"**Risk Aversion (Gamma):** {gamma_value}")
-st.write(f"**Maximum Leverage Allowed:** {max_leverage_value}")
-
-# 💡 **User Insights**
-st.markdown("""
-### 🔍 Insights
-- Hover over **Efficient Frontier** points to see risk/return values.
-- Click on **Asset Names** to highlight specific stocks.
-- **Portfolio Weights** are displayed in an interactive bar chart.
-- Adjust **Risk Aversion (Gamma)** to see how allocations change.
-""")
 # 📊 Portfolio Allocation Interactive Charts
 allocation_df = pd.DataFrame({'Asset': selected_assets, 'Weight': optimized_weights})
 
