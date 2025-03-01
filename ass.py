@@ -4,7 +4,7 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import cvxpy as cp
-yimport yfinance as yf
+import yfinance as yf
 
 st.set_page_config(layout="wide")
 
