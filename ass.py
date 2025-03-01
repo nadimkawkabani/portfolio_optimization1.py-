@@ -121,3 +121,31 @@ st.markdown("""
 - **Portfolio Weights** are displayed in an interactive bar chart.
 - Adjust **Risk Aversion (Gamma)** to see how allocations change.
 """)
+# 📊 Portfolio Allocation Interactive Charts
+allocation_df = pd.DataFrame({'Asset': selected_assets, 'Weight': optimized_weights})
+
+# Bar Chart for Weight Allocation
+fig_bar = px.bar(
+    allocation_df, x="Asset", y="Weight",
+    text=allocation_df["Weight"].apply(lambda x: f"{x:.2%}"),
+    title="Portfolio Weight Allocation - Bar Chart",
+    labels={"Weight": "Portfolio Weight"},
+    color="Asset",
+    hover_data={"Weight": ":.2%"}
+)
+fig_bar.update_traces(textposition="outside")
+fig_bar.update_layout(yaxis_tickformat=".1%", template="plotly_dark")
+
+# Pie Chart for Weight Allocation
+fig_pie = px.pie(
+    allocation_df, names="Asset", values="Weight",
+    title="Portfolio Weight Allocation - Pie Chart",
+    hole=0.4, color="Asset",
+    hover_data={"Weight": ":.2%"}
+)
+fig_pie.update_traces(textinfo="percent+label", pull=[0.05] * len(selected_assets))
+
+# Display Charts
+st.subheader("📊 Portfolio Allocation")
+st.plotly_chart(fig_bar)  # Bar Chart
+st.plotly_chart(fig_pie)  # Pie Chart
