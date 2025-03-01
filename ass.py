@@ -203,7 +203,9 @@ fig_bar_leverage.update_layout(
     barmode='stack'
 )
 
-st.plotly_chart(fig_bar_leverage)import streamlit as st
+st.plotly_chart(fig_bar_leverage)
+
+import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
