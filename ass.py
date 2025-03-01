@@ -32,6 +32,7 @@ with st.sidebar:
 
 @st.cache_data
 def fetch_data(assets, start, end):
+    """Fetch historical price data from Yahoo Finance and compute returns."""
     data = yf.download(assets, start=start, end=end)
     return data["Close"].pct_change().dropna()
 
@@ -49,12 +50,12 @@ portf_vol = cp.quad_form(weights, cov_mat)
 objective_function = cp.Maximize(portf_rtn - gamma_par * portf_vol)
 problem = cp.Problem(objective_function, [cp.sum(weights) == 1, weights >= 0])
 
+# Solve for selected gamma value
 gamma_par.value = gamma_value
 problem.solve()
-
 optimized_weights = weights.value
 
-# Efficient Frontier
+# Efficient Frontier Calculation
 N_POINTS = 25
 gamma_range = np.logspace(-3, 3, num=N_POINTS)
 frontier_x, frontier_y = [], []
@@ -65,45 +66,48 @@ for gamma in gamma_range:
     frontier_x.append(np.sqrt(portf_vol.value))
     frontier_y.append(portf_rtn.value)
 
-# Interactive Efficient Frontier Plot
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=frontier_x, y=frontier_y, mode='lines', name='Efficient Frontier'))
+# **📊 Efficient Frontier Plot (Interactive)**
+fig_frontier = go.Figure()
 
-# Scatter plot for assets
+# Add Efficient Frontier Line
+fig_frontier.add_trace(go.Scatter(
+    x=frontier_x, y=frontier_y, mode='lines', name='Efficient Frontier'
+))
+
+# Add Individual Asset Points
 for i, asset in enumerate(selected_assets):
-    fig.add_trace(go.Scatter(
-        x=[np.sqrt(cov_mat[i, i])], y=[avg_returns[i]],
-        mode='markers', marker=dict(size=10, symbol='circle'), name=asset
+    fig_frontier.add_trace(go.Scatter(
+        x=[np.sqrt(cov_mat[i, i])], 
+        y=[avg_returns[i]], 
+        mode='markers', 
+        marker=dict(size=10, symbol='circle'), 
+        name=asset
     ))
 
-fig.update_layout(title='Efficient Frontier', xaxis_title='Volatility', yaxis_title='Expected Return')
-st.plotly_chart(fig)
-
-# 📊 Portfolio Allocation Interactive Charts
-allocation_df = pd.DataFrame({'Asset': selected_assets, 'Weight': optimized_weights})
-
-# Bar Chart for Weight Allocation
-fig_bar = px.bar(
-    allocation_df, x="Asset", y="Weight",
-    text=allocation_df["Weight"].apply(lambda x: f"{x:.2%}"),
-    title="Portfolio Weight Allocation - Bar Chart",
-    labels={"Weight": "Portfolio Weight"},
-    color="Asset",
-    hover_data={"Weight": ":.2%"}
+# Customize layout
+fig_frontier.update_layout(
+    title='Efficient Frontier with Asset Points',
+    xaxis_title='Volatility (Risk)',
+    yaxis_title='Expected Return',
+    hovermode="x unified"
 )
-fig_bar.update_traces(textposition="outside")
-fig_bar.update_layout(yaxis_tickformat=".1%", template="plotly_dark")
 
-# Pie Chart for Weight Allocation
+# Display Plot
+st.plotly_chart(fig_frontier)
+
+# **📌 Portfolio Weight Allocation Table**
+allocation_df = pd.DataFrame({'Asset': selected_assets, 'Weight': optimized_weights})
+st.subheader("📊 Portfolio Weight Allocation")
+st.dataframe(allocation_df)
+
+# **📊 Weight Allocation Pie Chart (Interactive)**
 fig_pie = px.pie(
     allocation_df, names="Asset", values="Weight",
     title="Portfolio Weight Allocation - Pie Chart",
-    hole=0.4, color="Asset",
+    hole=0.4,
     hover_data={"Weight": ":.2%"}
 )
 fig_pie.update_traces(textinfo="percent+label", pull=[0.05] * len(selected_assets))
 
-# Display Charts
-st.subheader("📊 Portfolio Allocation")
-st.plotly_chart(fig_bar)  # Bar Chart
-st.plotly_chart(fig_pie)  # Pie Chart
+# Display Pie Chart
+st.plotly_chart(fig_pie)
