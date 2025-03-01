@@ -6,3 +6,4 @@ yfinance
 quantstats
 cvxpy
 streamlit
+ipython
