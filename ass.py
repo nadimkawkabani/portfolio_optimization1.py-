@@ -33,7 +33,7 @@ with st.sidebar:
 
 # Download market data
 try:
-    prices_df = yf.download(selected_assets, start=start_date, end=end_date)["Adj Close"]
+    prices_df = yf.download(selected_assets, start=start_date, end=end_date)["Close"]
     returns = prices_df.pct_change().dropna()
 except Exception as e:
     st.error(f"Error fetching data: {e}")
