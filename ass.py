@@ -1,6 +1,6 @@
 import streamlit as st
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -11,9 +11,6 @@ import warnings
 # Suppress warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
 warnings.simplefilter(action="ignore", category=pd.errors.SettingWithCopyWarning)
-
-# Set Seaborn theme
-sns.set_theme(context="talk", style="whitegrid", palette="colorblind", color_codes=True, rc={"figure.figsize": [12, 8]})
 
 # Define diversified assets across industries
 ASSETS = [
@@ -84,37 +81,71 @@ for gamma in gamma_range:
 
 weights_df = pd.DataFrame(weights_ef, columns=selected_assets, index=np.round(gamma_range, 3))
 
-# Plot Weight Allocation
+# Plot Weight Allocation with Hover Interactivity
 st.subheader("Weight Allocation by Risk Aversion")
-fig, ax = plt.subplots()
-weights_df.plot(kind="bar", stacked=True, ax=ax)
-ax.set(title="Weights Allocation", xlabel=r"$\gamma$", ylabel="Weight")
-ax.legend(bbox_to_anchor=(1, 1))  # Move legend to the far right
-sns.despine()
-st.pyplot(fig)
+fig_bar = px.bar(
+    weights_df,
+    x=weights_df.index,
+    y=weights_df.columns,
+    labels={"x": "Risk Aversion (Gamma)", "y": "Weight"},
+    title="Weights Allocation",
+    barmode="stack"
+)
 
-# Plot Efficient Frontier with Asset Points
+# Customize hover data
+fig_bar.update_traces(
+    hovertemplate="<b>Risk Aversion (Gamma):</b> %{x}<br><b>Weight:</b> %{y:.2f}<br><b>Asset:</b> %{fullData.name}"
+)
+
+# Improve layout
+fig_bar.update_layout(
+    xaxis_title="Risk Aversion (Gamma)",
+    yaxis_title="Weight",
+    hovermode="x unified",
+    legend_title="Assets",
+    barmode='stack'
+)
+
+st.plotly_chart(fig_bar)
+
+# Plot Efficient Frontier with Asset Points (Interactive)
 st.subheader("Efficient Frontier with Asset Points")
-fig, ax = plt.subplots()
+fig_frontier = go.Figure()
 
 # Plot Efficient Frontier Line
-ax.plot(portf_vol_cvx_ef, portf_rtn_cvx_ef, "g-", label="Efficient Frontier")
+fig_frontier.add_trace(go.Scatter(
+    x=portf_vol_cvx_ef,
+    y=portf_rtn_cvx_ef,
+    mode="lines",
+    name="Efficient Frontier",
+    line=dict(color="green", width=2),
+    hovertemplate="<b>Volatility:</b> %{x:.2f}<br><b>Return:</b> %{y:.2f}"
+))
 
 # Scatter plot for individual assets
-MARKERS = ["o", "X", "d", "*"]
 for asset_index in range(len(selected_assets)):
-    ax.scatter(x=np.sqrt(cov_mat[asset_index, asset_index]),
-               y=avg_returns[asset_index],
-               marker=MARKERS[asset_index % len(MARKERS)],
-               label=selected_assets[asset_index],
-               s=150)
+    fig_frontier.add_trace(go.Scatter(
+        x=[np.sqrt(cov_mat[asset_index, asset_index])],
+        y=[avg_returns[asset_index]],
+        mode="markers",
+        marker=dict(size=10, symbol="circle"),
+        name=selected_assets[asset_index],
+        hovertemplate="<b>Asset:</b> %{text}<br><b>Volatility:</b> %{x:.2f}<br><b>Return:</b> %{y:.2f}",
+        text=[selected_assets[asset_index]]
+    ))
 
-ax.set(title="Efficient Frontier with Asset Points", xlabel="Volatility", ylabel="Expected Returns")
-ax.legend(bbox_to_anchor=(1, 1))  # Move legend to the far right
-sns.despine()
-st.pyplot(fig)
+# Improve layout
+fig_frontier.update_layout(
+    title="Efficient Frontier with Asset Points",
+    xaxis_title="Volatility",
+    yaxis_title="Expected Returns",
+    hovermode="x unified",
+    legend_title="Assets"
+)
 
-# Portfolio Optimization with Leverage
+st.plotly_chart(fig_frontier)
+
+# Portfolio Optimization with Leverage (Interactive)
 max_leverage = cp.Parameter()
 prob_with_leverage = cp.Problem(objective_function, [cp.sum(weights) == 1, cp.norm(weights, 1) <= max_leverage])
 
@@ -134,31 +165,28 @@ for lev_ind, leverage in enumerate(LEVERAGE_RANGE):
         portf_rtn_l[gamma_ind, lev_ind] = portf_rtn_cvx.value
         weights_ef[lev_ind, gamma_ind, :] = weights.value
 
+# Plot Efficient Frontier with Leverage (Interactive)
 st.subheader("Efficient Frontier with Leverage")
-fig, ax = plt.subplots()
+fig_leverage = go.Figure()
+
 for leverage_index, leverage in enumerate(LEVERAGE_RANGE):
-    ax.plot(portf_vol_l[:, leverage_index], portf_rtn_l[:, leverage_index], label=f"Leverage: {leverage}")
+    fig_leverage.add_trace(go.Scatter(
+        x=portf_vol_l[:, leverage_index],
+        y=portf_rtn_l[:, leverage_index],
+        mode="lines",
+        name=f"Leverage: {leverage}",
+        line=dict(width=2),
+        hovertemplate="<b>Leverage:</b> %{text}<br><b>Volatility:</b> %{x:.2f}<br><b>Return:</b> %{y:.2f}",
+        text=[f"Leverage: {leverage}"] * len(portf_vol_l[:, leverage_index])
+    ))
 
-ax.set(title="Efficient Frontier with Leverage", xlabel="Volatility", ylabel="Expected Returns")
-ax.legend(title="Max Leverage", bbox_to_anchor=(1, 1))  # Move legend to the far right
-sns.despine()
-st.pyplot(fig)
+# Improve layout
+fig_leverage.update_layout(
+    title="Efficient Frontier with Leverage",
+    xaxis_title="Volatility",
+    yaxis_title="Expected Returns",
+    hovermode="x unified",
+    legend_title="Leverage"
+)
 
-# Weight Allocation for Different Leverage Levels
-st.subheader("Weight Allocation Across Leverage Levels")
-fig, ax = plt.subplots(len_leverage, 1, sharex=True)
-
-# Handle single subplot case
-if len_leverage == 1:
-    ax = [ax]
-
-for ax_index in range(len_leverage):
-    weights_df = pd.DataFrame(weights_ef[ax_index], columns=selected_assets, index=np.round(gamma_range, 3))
-    weights_df.plot(kind="bar", stacked=True, ax=ax[ax_index], legend=None)
-    ax[ax_index].set(ylabel=f"Max Leverage = {LEVERAGE_RANGE[ax_index]}\n Weight")
-
-ax[len_leverage - 1].set(xlabel=r"$\gamma$")
-ax[0].legend(bbox_to_anchor=(1, 1))  # Move legend to the far right
-ax[0].set_title("Weight Allocation per Risk-Aversion Level", fontsize=16)
-sns.despine()
-st.pyplot(fig)
+st.plotly_chart(fig_leverage)
