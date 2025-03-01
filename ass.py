@@ -31,18 +31,13 @@ st.set_page_config(page_title="Portfolio Optimization", layout="wide")
 # Streamlit Title
 st.title("Portfolio Optimization")
 
-# Filter for Asset Selection
-selected_assets = st.multiselect("Select Assets", ASSETS, default=ASSETS)
-
-# Filter for Date Range
-start_date = st.date_input("Start Date", value=pd.to_datetime("2017-01-01"))
-end_date = st.date_input("End Date", value=pd.to_datetime("2023-12-31"))
-
-# Filter for Gamma (Risk Aversion)
-gamma_value = st.slider("Risk Aversion (Gamma)", min_value=0.001, max_value=100.0, value=0.1, step=0.001)
-
-# Filter for Leverage Levels
-max_leverage_value = st.slider("Max Leverage", min_value=1, max_value=5, value=1, step=1)
+# Place the filters in the sidebar
+with st.sidebar:
+    selected_assets = st.multiselect("Select Assets", ASSETS, default=ASSETS)
+    start_date = st.date_input("Start Date", value=pd.to_datetime("2017-01-01"))
+    end_date = st.date_input("End Date", value=pd.to_datetime("2023-12-31"))
+    gamma_value = st.slider("Risk Aversion (Gamma)", min_value=0.001, max_value=100.0, value=0.1, step=0.001)
+    max_leverage_value = st.slider("Max Leverage", min_value=1, max_value=5, value=1, step=1)
 
 # Download market data
 try:
@@ -94,7 +89,7 @@ st.subheader("Weight Allocation by Risk Aversion")
 fig, ax = plt.subplots()
 weights_df.plot(kind="bar", stacked=True, ax=ax)
 ax.set(title="Weights Allocation", xlabel=r"$\gamma$", ylabel="Weight")
-ax.legend(bbox_to_anchor=(1, 1))
+ax.legend(bbox_to_anchor=(1, 1))  # Move legend to the far right
 sns.despine()
 st.pyplot(fig)
 
@@ -111,7 +106,7 @@ for asset_index in range(len(selected_assets)):
                label=selected_assets[asset_index],
                s=150)
 ax.set(title="Efficient Frontier", xlabel="Volatility", ylabel="Expected Returns")
-ax.legend()
+ax.legend(bbox_to_anchor=(1, 1))  # Move legend to the far right
 sns.despine()
 st.pyplot(fig)
 
@@ -141,7 +136,7 @@ for leverage_index, leverage in enumerate(LEVERAGE_RANGE):
     ax.plot(portf_vol_l[:, leverage_index], portf_rtn_l[:, leverage_index], label=f"Leverage: {leverage}")
 
 ax.set(title="Efficient Frontier with Leverage", xlabel="Volatility", ylabel="Expected Returns")
-ax.legend(title="Max Leverage")
+ax.legend(title="Max Leverage", bbox_to_anchor=(1, 1))  # Move legend to the far right
 sns.despine()
 st.pyplot(fig)
 
@@ -159,7 +154,7 @@ for ax_index in range(len_leverage):
     ax[ax_index].set(ylabel=f"Max Leverage = {LEVERAGE_RANGE[ax_index]}\n Weight")
 
 ax[len_leverage - 1].set(xlabel=r"$\gamma$")
-ax[0].legend(bbox_to_anchor=(1, 1))
+ax[0].legend(bbox_to_anchor=(1, 1))  # Move legend to the far right
 ax[0].set_title("Weight Allocation per Risk-Aversion Level", fontsize=16)
 sns.despine()
 st.pyplot(fig)
